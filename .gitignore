@@ -218,3 +218,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local env files (keep the example tracked)
+.env.*
+!.env.example
