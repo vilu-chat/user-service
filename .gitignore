@@ -222,3 +222,4 @@ __marimo__/
 # Local env files (keep the example tracked)
 .env.*
 !.env.example
+pyrightconfig.json
