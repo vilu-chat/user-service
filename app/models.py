@@ -5,8 +5,13 @@ from app.extensions import db
 
 class User(db.Model):
     __tablename__ = "users"
+    __table_args__ = (
+        # Prefix search (LIKE 'abc%'); the unique constraint only serves exact matches.
+        db.Index("ix_users_username_prefix", "username", postgresql_ops={"username": "varchar_pattern_ops"}),
+    )
 
     id = db.Column(db.Uuid, primary_key=True)  # Keycloak sub, no default
+    username = db.Column(db.String(255), unique=True, nullable=True)  # lowercase copy of preferred_username
     display_name = db.Column(db.String(64), nullable=False)
     bio = db.Column(db.Text, nullable=True)
     status_text = db.Column(db.String(140), nullable=True)
@@ -26,6 +31,25 @@ class User(db.Model):
         nullable=False,
     )
     deleted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+
+
+class UserRelation(db.Model):
+    __tablename__ = "user_relations"
+    __table_args__ = (
+        db.CheckConstraint("kind IN ('contact', 'pending', 'blocked')", name="kind"),
+        db.Index("ix_user_relations_other_user_id", "other_user_id"),
+    )
+
+    user_id = db.Column(
+        db.Uuid, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    other_user_id = db.Column(
+        db.Uuid, db.ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    kind = db.Column(db.String(10), nullable=False)  # contact or pending (blocked is not written yet)
+    created_at = db.Column(
+        db.DateTime(timezone=True), server_default=db.func.now(), nullable=False
+    )
 
 
 class OutboxEvent(db.Model):  # same shape in both services

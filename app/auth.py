@@ -21,7 +21,7 @@ def _bearer_token() -> str:
 
 
 def require_auth(view):
-    """Validate the bearer JWT (RS256 via JWKS, exp, iss, aud) and set g.current_user_id / g.claims."""
+    """Validate the bearer JWT (RS256 via JWKS, exp, iss, aud) and set g.current_user_id / g.current_username / g.claims."""
 
     @wraps(view)
     def wrapper(*args, **kwargs):
@@ -45,7 +45,9 @@ def require_auth(view):
         except (jwt.PyJWTError, ValueError, TypeError, AttributeError):
             _unauthorized("Invalid token")
 
+        username = claims.get("preferred_username")
         g.current_user_id = user_id
+        g.current_username = username if isinstance(username, str) else None
         g.claims = claims
         return view(*args, **kwargs)
 

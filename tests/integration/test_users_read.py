@@ -2,7 +2,7 @@ import uuid
 
 from tests.conftest import ANNA, BOB, CECILIA
 
-PUBLIC_FIELDS = {"id", "display_name", "bio", "status_text", "avatar_url"}
+PUBLIC_FIELDS = {"id", "username", "display_name", "bio", "status_text", "avatar_url"}
 
 
 def provision(client, as_user, user, name):

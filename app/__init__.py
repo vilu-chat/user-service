@@ -27,9 +27,11 @@ def create_app() -> Flask:
 
     from app import models  # noqa: F401  (registers models with db.metadata)
     from app.blueprints.health import blp as health_blp
+    from app.blueprints.relations import blp as relations_blp
     from app.blueprints.users import blp as users_blp
 
     api.register_blueprint(health_blp)
     api.register_blueprint(users_blp)
+    api.register_blueprint(relations_blp)
 
     return app

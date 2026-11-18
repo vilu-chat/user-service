@@ -1,7 +1,7 @@
 # user-service
 
-Flask service that owns user profiles (see `../design.md`). First slice: health endpoints,
-JWT validation, and `GET /api/v1/users/me` with lazy provisioning.
+Flask service that owns user profiles (see `../design.md`). Health endpoints, JWT validation,
+profiles with lazy provisioning, username search and contacts (friend requests).
 
 Layers: Blueprint (`app/blueprints`) → service (`app/services`, owns the commit) → repository
 (`app/repositories`, queries only).
@@ -34,6 +34,17 @@ Health: `/healthz` (liveness), `/readyz` (runs `SELECT 1`).
 | DELETE | `/me` | Soft delete (204). Idempotent |
 | GET | `/{user_id}` | Public profile; 404 if missing or deleted |
 | POST | `/lookup` | `{ids}` (1 to 100); returns the public profiles found, omitting unknown and deleted ids |
+| GET | `/search` | `?q=` (trimmed, lowercased, 3 to 64 chars, else 422) and `?limit=` (default and max 20): users whose username starts with `q`, ordered by username, no cursor. Leaves out the caller, deleted users and users without a username |
+| GET | `/me/relations` | `?kind=contact\|pending` (default `contact`), `?direction=incoming\|outgoing` (pending only, default `incoming`), `?limit` (default 50, max 100), `?cursor`; returns `{items, next_cursor}`, newest first, each item with the other user's profile nested; deleted users are left out |
+| PUT | `/me/relations/{other_user_id}` | Send a contact request (no body): 201; 400 for yourself, 404 unknown/deleted user, 409 already contacts or a request exists in either direction |
+| POST | `/me/relations/{other_user_id}/accept` | Accept a received request: 200 with your contact row (also when already contacts); 404 without a request |
+| DELETE | `/me/relations/{other_user_id}` | Remove a contact, cancel your own request or decline a received one: always 204 |
+
+The `username` (a lowercase copy of the token's `preferred_username`) is stored when the row is created and filled in or
+updated on later `/me` and relation calls; if another user already has it, the old value stays and a warning is logged.
+No event is published for username changes. The relation endpoints use the same account rules as `/me` (a deleted caller
+gets 403 `account_deleted`; a missing profile row is created) and lock both users rows (`SELECT ... FOR UPDATE`) so
+opposite requests cannot both succeed. Blocking and relation events are not part of this slice.
 
 A deleted account gets `403` with `"error_code": "account_deleted"` on `GET`/`PATCH /me`, and lazy provisioning never
 recreates or revives it. Errors use the flask-smorest format (`code`, `status`, `message`); a few also carry a stable

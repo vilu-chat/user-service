@@ -74,7 +74,7 @@ def jwks_patch(monkeypatch, rsa_key):
 
 @pytest.fixture
 def make_token(rsa_key):
-    def _make(*, key=None, headers=None, expires_in=300, **overrides):
+    def _make(*, key=None, headers=None, expires_in=300, preferred_username="anna", **overrides):
         now = datetime.now(timezone.utc)
         claims = {
             "iss": ISSUER,
@@ -83,7 +83,7 @@ def make_token(rsa_key):
             "iat": now,
             "exp": now + timedelta(seconds=expires_in),
             "name": "Anna Andersson",
-            "preferred_username": "anna",
+            "preferred_username": preferred_username,  # None leaves the claim out
             "email": "anna@example.test",
             "realm_access": {"roles": ["user"]},
         }
@@ -109,11 +109,17 @@ BOB = uuid.UUID("0b1f6a4e-5c1d-4e8a-9a57-3f2d8c1a0002")
 CECILIA = uuid.UUID("0b1f6a4e-5c1d-4e8a-9a57-3f2d8c1a0003")
 
 
+DAVID = uuid.UUID("0b1f6a4e-5c1d-4e8a-9a57-3f2d8c1a0004")
+USERNAMES = {ANNA: "anna", BOB: "bob", CECILIA: "cecilia", DAVID: "david"}
+
+
 @pytest.fixture
 def as_user(auth_header):
     """Headers for a given user: as_user(ANNA, name="Anna")."""
 
     def _headers(user_id, **claims):
+        # Each user gets their own username unless the test says otherwise (None = no claim).
+        claims.setdefault("preferred_username", USERNAMES.get(user_id, f"user-{user_id.hex[:8]}"))
         return auth_header(sub=str(user_id), **claims)
 
     return _headers
@@ -151,3 +157,58 @@ def db_user(app):
             return user
 
     return _get
+
+
+@pytest.fixture
+def make_user(app):
+    """make_user(user_id, username=None, deleted=False, display_name=None) inserts a users row directly."""
+    from app.extensions import db
+    from app.models import User
+
+    def _make(user_id, username=None, deleted=False, display_name=None):
+        with app.app_context():
+            db.session.add(
+                User(
+                    id=user_id,
+                    username=username,
+                    display_name=display_name or (username or "Someone").title(),
+                    deleted_at=datetime.now(timezone.utc) if deleted else None,
+                )
+            )
+            db.session.commit()
+        return user_id
+
+    return _make
+
+
+@pytest.fixture
+def make_relation(app):
+    """make_relation(user_id, other_user_id, kind="pending", created_at=None) inserts a user_relations row."""
+    from app.extensions import db
+    from app.models import UserRelation
+
+    def _make(user_id, other_user_id, kind="pending", created_at=None):
+        with app.app_context():
+            row = UserRelation(user_id=user_id, other_user_id=other_user_id, kind=kind)
+            if created_at is not None:
+                row.created_at = created_at
+            db.session.add(row)
+            db.session.commit()
+
+    return _make
+
+
+@pytest.fixture
+def relation_rows(app):
+    """relation_rows() -> sorted (user_id, other_user_id, kind) tuples straight from the database."""
+    from sqlalchemy import select
+
+    from app.extensions import db
+    from app.models import UserRelation
+
+    def _rows():
+        with app.app_context():
+            rows = db.session.execute(select(UserRelation.user_id, UserRelation.other_user_id, UserRelation.kind))
+            return sorted((u, o, k) for u, o, k in rows)
+
+    return _rows
