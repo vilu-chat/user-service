@@ -23,6 +23,14 @@ class Config:
         self.KEYCLOAK_JWKS_URL = _required("KEYCLOAK_JWKS_URL")
         self.KEYCLOAK_AUDIENCE = _required("KEYCLOAK_AUDIENCE")
 
+        # Comma-separated exact origins allowed to call /api/* from a browser, for example
+        # "https://app.example.com". Empty (default): no CORS headers (same-origin setups).
+        self.CORS_ALLOWED_ORIGINS = [
+            origin.strip()
+            for origin in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",")
+            if origin.strip()
+        ]
+
         # flask-smorest: OpenAPI spec at /openapi.json, Swagger UI at /docs
         self.API_TITLE = "User Service"
         self.API_VERSION = "v1"

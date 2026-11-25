@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from flask import Flask
+from flask_cors import CORS
 from jwt import PyJWKClient
 
 from app.config import Config
@@ -17,6 +18,15 @@ def create_app() -> Flask:
     db.init_app(app)
     migrate.init_app(app, db, directory=str(MIGRATIONS_DIR))
     api.init_app(app)
+    if app.config["CORS_ALLOWED_ORIGINS"]:
+        # Bearer tokens, not cookies: no credentials. Only /api/*; health and docs stay without CORS.
+        CORS(
+            app,
+            resources={r"/api/*": {"origins": app.config["CORS_ALLOWED_ORIGINS"]}},
+            methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allow_headers=["Authorization", "Content-Type"],
+            max_age=600,
+        )
     api.spec.components.security_scheme(
         "bearerAuth", {"type": "http", "scheme": "bearer", "bearerFormat": "JWT"}
     )
